@@ -1,0 +1,130 @@
+
+
+//create a VPC
+resource "aws_vpc" "demo-vpc" {
+  cidr_block = var.vpc_cidr
+}
+
+
+//create a internet gateway
+resource "aws_internet_gateway" "demo-igw" {
+  vpc_id = aws_vpc.demo-vpc.id
+
+  tags = {
+    Name = "terraform-IGW"
+  }
+}
+
+
+//create public subnets
+resource "aws_subnet" "public-subnet" {
+    count = length(var.public_subnet_cidr)
+    vpc_id     = aws_vpc.demo-vpc.id
+    cidr_block =  element(var.public_subnet_cidr,count.index)
+    availability_zone = element(var.public_subnet_az, count.index)
+    map_public_ip_on_launch = true
+
+    tags = {
+      name = "terraform-public-subnet"
+    }
+}
+
+
+//create route table and route for public subnet
+resource "aws_route_table" "public-subnet-rt" {
+  vpc_id = aws_vpc.demo-vpc.id
+  count = length(var.public_subnet_cidr)
+
+  route {
+    cidr_block = var.basic_cidr
+    gateway_id = aws_internet_gateway.demo-igw.id
+  }
+
+  tags = {
+    name = "terraform-public-rt"
+  }
+}
+
+
+//association public subnets with the public route table
+resource "aws_route_table_association" "public-rt-association" {
+  count = length(var.public_subnet_cidr)
+  route_table_id = aws_route_table.public-subnet-rt[count.index].id
+  subnet_id = aws_subnet.public-subnet[count.index].id
+}
+
+
+// create private subnets
+resource "aws_subnet" "private-subnet" {
+    count = length(var.private_subnet_cidr)
+    vpc_id     = aws_vpc.demo-vpc.id
+    cidr_block =  element(var.private_subnet_cidr, count.index)
+    availability_zone = element(var.private_subnet_az, count.index)
+    map_public_ip_on_launch = false
+}
+
+
+
+//create NAT gateway in public subnet
+resource "aws_nat_gateway" "demo-ng" {
+ count = length(var.public_subnet_cidr)
+    allocation_id = aws_eip.demo-nat-eip[count.index].id
+    subnet_id = aws_subnet.public-subnet[count.index].id
+}
+
+
+//create an EIP and association it to the NAT gateways
+resource "aws_eip" "demo-nat-eip" {
+    count = length(var.public_subnet_cidr)
+}
+
+
+//create route table and route in private subnet
+resource "aws_route_table" "private-rt" {
+ count = length(var.private_subnet_cidr)
+  vpc_id = aws_vpc.demo-vpc.id
+
+  route {
+    cidr_block = element(var.private_subnet_cidr,count.index)
+    nat_gateway_id = aws_nat_gateway.demo-ng[count.index].id
+  }
+
+  tags = {
+    Name = "private-rt"
+  }
+}
+
+
+//association the private subnet with the private route table
+resource "aws_route_table_association" "private-rt-association" {
+ count = length(var.private_subnet_cidr)
+  route_table_id = aws_route_table.private-rt[count.index].id
+  subnet_id = aws_subnet.private-subnet[count.index].id
+}
+
+
+//create a security group
+resource "aws_security_group" "demo-vpc-sg" {
+  name        = "demo-vpc-sg" 
+  vpc_id      = aws_vpc.demo-vpc.id
+
+  ingress {
+    from_port        = 22
+    to_port          = 22
+    protocol         = "tcp"
+    cidr_blocks      = [aws_vpc.demo-vpc.cidr_block]
+    ipv6_cidr_blocks = [var.aws_security_group_cidr_ipv6]
+  }
+
+  egress {
+    from_port        = 0
+    to_port          = 0
+    protocol         = "-1"
+    cidr_blocks      = [var.basic_cidr]
+    ipv6_cidr_blocks = [var.aws_security_group_cidr_ipv6]
+  }
+
+  tags = {
+    Name = "demo-vpc-sg" 
+  }
+}
