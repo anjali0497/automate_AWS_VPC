@@ -1,0 +1,73 @@
+
+// Create IAM Role
+resource "aws_iam_role" "iam-role-for-lambda" {
+  name = "lambda_role"
+  assume_role_policy = data.aws_iam_policy_document.instance-assume-role-policy.json
+}
+
+
+# Create an IAM role for Lambda
+resource "aws_iam_role" "lambda_role_dynamodb" {
+  name = "lambda-dynamodb-role"
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17",
+    Statement = [
+      {
+        Action = "sts:AssumeRole",
+        Effect = "Allow",
+        Principal = {
+          Service = "lambda.amazonaws.com",
+        },
+      },
+    ],
+  })
+}
+
+# Attach a policy to the IAM role granting DynamoDB permissions
+resource "aws_iam_role_policy_attachment" "lambda_dynamodb_policy_attachment" {
+  policy_arn = "arn:aws:iam::aws:policy/AmazonDynamoDBFullAccess"  # Adjust the policy as needed
+  role       = aws_iam_role.lambda_role_dynamodb.name
+}
+
+# Output the ARN of the IAM role for reference
+output "lambda_role_dynamodb_arn" {
+  value = aws_iam_role.lambda_role_dynamodb.arn
+}
+
+
+// IAM Role Policy Attachment
+resource "aws_iam_policy_attachment" "lambda-execution-policy" {
+  name = "example-lambda-policy"
+  policy_arn = aws_iam_policy.lambda-policy.arn
+  roles = [aws_iam_role.iam-role-for-lambda.name]
+}
+
+
+// IAM Policy Document
+data "aws_iam_policy_document" "instance-assume-role-policy" {
+  statement {
+    actions = ["sts:AssumeRole"]
+    effect = "Allow"
+    principals {
+      type = "Service"
+      identifiers = ["lambda.amazonaws.com"]
+    }
+  }
+}
+
+// IAM Policy Document
+data "aws_iam_policy_document" "lambda-policy-document" {
+  statement {
+    actions = [
+      "logs:CreateLogGroup",
+      "logs:CreateLogStream",
+      "logs:PutLogEvents"
+    ]
+    effect = "Allow"
+    resources = [
+      "arn:aws:logs:${var.region}:${var.account_id}:log-group:/aws/lambda/api-lambda-function/*",
+      "arn:aws:logs:${var.region}:${var.account_id}:log-group:/aws/lambda/api-lambda-function:*:log-stream/*",
+  
+    ]
+  }
+}
