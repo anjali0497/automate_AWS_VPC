@@ -1,0 +1,23 @@
+// Create a security group for VPC
+resource "aws_security_group" "vpc-sg" {
+  name   = "automate-vpc-sg"
+  vpc_id = aws_vpc.automate-vpc.id
+  
+
+  tags = {
+    Name = "vpc-sg"
+  }
+}
+
+  # Ingress rule allowing traffic from Lambda to VPC resources
+resource "aws_security_group_rule" "lambda_to_vpc_ingress" {
+  security_group_id = aws_security_group.vpc-sg.id
+
+  type        = "ingress"
+  from_port   = 0
+  to_port     = 65535
+  protocol    = "-1"
+  cidr_blocks = [var.basic_cidr]
+  ipv6_cidr_blocks = [var.cidr_ipv6]
+}
+
