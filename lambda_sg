@@ -1,0 +1,23 @@
+// Create a security group for Lambda
+resource "aws_security_group" "lambda-sg" {
+  name   = "lambda-sg"
+  vpc_id = aws_vpc.automate-vpc.id
+
+  tags = {
+    Name = "lambda-sg"
+  }
+}
+
+// Egress rule allowing traffic from VPC resources to Lambda
+resource "aws_security_group_rule" "vpc_to_lambda_egress" {
+  security_group_id = aws_security_group.vpc-sg.id
+
+  type        = "egress"
+  from_port   = 0
+  to_port     = 0
+  protocol    = "-1"
+  cidr_blocks = [var.basic_cidr]
+  ipv6_cidr_blocks = [var.cidr_ipv6]
+}
+
+
